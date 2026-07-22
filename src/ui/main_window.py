@@ -1,58 +1,60 @@
 import sys
-from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QWidget
-
-from core.workers import start_worker, DeviceWorker
+from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QGridLayout, QVBoxLayout, QHBoxLayout, QWidget, QStyle
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, controller):
         super().__init__()
-        self.device_connection = None
+        self.controller = controller
 
-        self.connection_status = QLabel("Device not connected.")
+        self._connection_status = QLabel("Device not connected.")
+        self._connection_button = QPushButton("Connect")
+        self._connection_button.clicked.connect(self.controller.connection_button_callback)
 
-        self.connection_button = QPushButton("Connect")
-        self.connection_button.clicked.connect(self.connection_button_callback)
+        self.controller.status_text_changed.connect(self._connection_status.setText);
+        self.controller.button_text_changed.connect(self._connection_button.setText);
+        self.controller.button_enabled_changed.connect(self._connection_button.setEnabled);
+
+        self._z_plus_button = QPushButton("Up")
+        self._z_minus_button = QPushButton("Down")
+        self._a_plus_button = QPushButton("Right")
+        self._a_minus_button = QPushButton("Left")
+
+        self._z_plus_button.setIcon(self._z_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowUp))
+        self._z_minus_button.setIcon(self._z_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
+
+        self._a_plus_button.setIcon(self._a_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight))
+        self._a_minus_button.setIcon(self._a_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowLeft))
 
         # Layout starts here.
         layout = QVBoxLayout()
 
         tool_bar = QHBoxLayout()
-        tool_bar.addWidget(self.connection_status)
-        tool_bar.addWidget(self.connection_button)
+        tool_bar.addWidget(self._connection_status)
+        tool_bar.addWidget(self._connection_button)
+
+        button_box = QGridLayout()
+        button_box.addWidget(self._z_plus_button, 0, 1)
+        button_box.addWidget(self._z_minus_button, 2, 1)
+        
+        button_box.addWidget(self._a_minus_button, 1, 0)
+        button_box.addWidget(self._a_plus_button, 1, 2)
 
         layout.addLayout(tool_bar)
+        layout.addLayout(button_box)
         # Layout ends here.
 
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
 
-        self.thread = None
-        self.worker = None
-
-    def connection_button_callback(self):
-        self.connection_status.setText("Connecting...")
-        self.connection_button.setEnabled(False)
-        
-        self.thread, self.work = start_worker(DeviceWorker(), self.connection_result_callback)
-
-    def connection_result_callback(self, result):
-        if result is None:
-            self.connection_status.setText("Connection Failed.")
-            self.connection_button.setEnabled(True)
-        else:
-            self.device_connection = result
-            self.connection_status.setText(f"Connected to {result.name}")
-
     def closeEvent(self, event):
-        if self.device_connection:
-            self.device_connection.close()
-
         event.accept()
         
 
 if __name__ == '__main__':
+    from core.ui_controller import UIController
+
     app = QApplication(sys.argv)
-    window = MainWindow()
+    window = MainWindow(UIController())
     window.show()
     sys.exit(app.exec())
