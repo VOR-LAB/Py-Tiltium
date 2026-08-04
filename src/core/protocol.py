@@ -7,9 +7,9 @@ SOFT_RESET   = b'\x18'
 
 # Checks and bounds. Must raise exceptions in case functions are used incorrectly.
 AXES         = ('A', 'Z')
-MAX_DIST     = 30
-MIN_DIST     = -30
-MAX_RATE     = 300
+MAX_DIST     = 30.0
+MIN_DIST     = -30.0
+MAX_RATE     = 300.0
 
 # Line-based command builder.
 def jog_command(axis: str, distance: float, feedrate: float) -> str:

@@ -6,22 +6,31 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.controller = controller
 
-        self._connection_status = QLabel("Device not connected.")
-        self._connection_button = QPushButton("Connect")
+        self._connection_status = QLabel('Device not connected.')
+        self._connection_button = QPushButton('Connect')
         self._connection_button.clicked.connect(self.controller.connection_button_callback)
 
         self.controller.status_text_changed.connect(self._connection_status.setText);
         self.controller.button_text_changed.connect(self._connection_button.setText);
-        self.controller.button_enabled_changed.connect(self._connection_button.setEnabled);
+        self.controller.button_enable_changed.connect(self._connection_button.setEnabled);
 
-        self._z_plus_button = QPushButton("Up")
-        self._z_minus_button = QPushButton("Down")
-        self._a_plus_button = QPushButton("Right")
-        self._a_minus_button = QPushButton("Left")
+        self._z_plus_button = QPushButton('Up')
+        self._z_minus_button = QPushButton('Down')
+        self._a_plus_button = QPushButton('Right')
+        self._a_minus_button = QPushButton('Left')
+
+        self._z_plus_button.pressed.connect(lambda: self.controller.arrow_button_pressed('Z+'))
+        self._z_minus_button.pressed.connect(lambda: self.controller.arrow_button_pressed('Z-'))
+        self._a_plus_button.pressed.connect(lambda: self.controller.arrow_button_pressed('A+'))
+        self._a_minus_button.pressed.connect(lambda: self.controller.arrow_button_pressed('A-'))
+
+        self._z_plus_button.released.connect(lambda: self.controller.arrow_button_released())
+        self._z_minus_button.released.connect(lambda: self.controller.arrow_button_released())
+        self._a_plus_button.released.connect(lambda: self.controller.arrow_button_released())
+        self._a_minus_button.released.connect(lambda: self.controller.arrow_button_released())
 
         self._z_plus_button.setIcon(self._z_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowUp))
         self._z_minus_button.setIcon(self._z_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
-
         self._a_plus_button.setIcon(self._a_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight))
         self._a_minus_button.setIcon(self._a_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowLeft))
 
@@ -46,9 +55,14 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
-
-    def closeEvent(self, event):
-        event.accept()
+        
+        def closeEvent(self, event):
+            if self.controller.connection is None:
+                event.accept()
+                return
+            self.controller.connection_thread.finished.connect(lambda: self.close())
+            self.controller.close_connection.emit()
+            event.ignore()
         
 
 if __name__ == '__main__':

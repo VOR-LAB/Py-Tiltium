@@ -1,11 +1,4 @@
-from PySide6.QtCore import QThread, QObject, Signal
-from hardware import device
-
-class DeviceWorker(QObject):
-    finished = Signal(object);
-
-    def run(self):
-        self.finished.emit(device.connect())
+from PySide6.QtCore import QThread
 
 def start_worker(worker, on_finished):
     thread = QThread()
