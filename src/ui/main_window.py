@@ -1,7 +1,9 @@
 import sys
+from core.states import ConnectionState as CState
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QGridLayout, QVBoxLayout, QHBoxLayout, QWidget, QStyle
 
 class MainWindow(QMainWindow):
+    
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
@@ -10,9 +12,7 @@ class MainWindow(QMainWindow):
         self._connection_button = QPushButton('Connect')
         self._connection_button.clicked.connect(self.controller.connection_button_callback)
 
-        self.controller.status_text_changed.connect(self._connection_status.setText);
-        self.controller.button_text_changed.connect(self._connection_button.setText);
-        self.controller.button_enable_changed.connect(self._connection_button.setEnabled);
+        controller.state_changed.connect(self._state_changed)
 
         self._z_plus_button = QPushButton('Up')
         self._z_minus_button = QPushButton('Down')
@@ -56,13 +56,34 @@ class MainWindow(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
         
-        def closeEvent(self, event):
-            if self.controller.connection is None:
-                event.accept()
-                return
-            self.controller.connection_thread.finished.connect(lambda: self.close())
-            self.controller.close_connection.emit()
-            event.ignore()
+    def _state_changed(self, states):
+        match states:
+            case CState.DISCONNECTED:
+                self._connection_button.setText("Connect")
+                self._connection_status.setText("Disconnected.")
+                self._connection_button.setEnabled(True)
+            case CState.CONNECTING:
+                self._connection_status.setText("Connecting...")
+                self._connection_button.setEnabled(False)
+            case CState.FAILED:
+                self._connection_button.setText("Connect")
+                self._connection_button.setEnabled(True)
+                self._connection_status.setText("Connection Failed, check physical connection.")
+            case CState.CONNECTED:
+                self._connection_button.setText("Disconnect")
+                self._connection_button.setEnabled(True)
+                self._connection_status.setText("Connected!")
+            case CState.STOPPING:
+                self._connection_button.setEnabled(False)
+                self._connection_status.setText("Disconnecting...")
+            case _:
+                self._connection_button.setText("Unknown State")
+                self._connection_button.setEnabled(False)
+                self._connection_status.setText("Unknown State")
+
+    def closeEvent(self, event):
+        self.controller.shutdown(self.close)
+        event.ignore()
         
 
 if __name__ == '__main__':
