@@ -1,7 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import QObject, QThread, Signal, Slot, QEventLoop
 from PySide6.QtSerialPort import QSerialPort
 from core import status
 from core.states import ConnectionState as CS
@@ -141,6 +141,7 @@ class ConnectionService(QObject):
             return False
         self._state = new_state
         self.state_changed.emit(new_state)
+        logger.info('`ConnectionService`: State changed to %s', self._state)
         return True
 
     def _teardown(self):
@@ -165,6 +166,10 @@ class ConnectionService(QObject):
         # Worker signal towards self which trigger a function
         self._connection.result.connect(self._on_connection_result)
         self._connection.closed.connect(self._on_connection_closed)
+        self._connection.status_received.connect(self._on_connection_status)
+        self._connection.ok_received.connect(self._on_connection_ok)
+        self._connection.error_received.connect(self._on_connection_error)
+        self._connection.line_received.connect(self._on_connection_line)
 
         # Self signals towards worker which trigger a function
         self.wrkr_close_connection.connect(self._connection.close)
@@ -196,22 +201,48 @@ class ConnectionService(QObject):
         if self._transition(CS.DISCONNECTED): ...
         elif self._transition(CS.FAILED): ...
         else:
-            logger.warning('closed received in unexpected state: %s', self._state)
+            logger.warning('`ConnectionService`: closed received in unexpected state: %s', self._state)
 
         self._teardown()
+
+    def _on_connection_ok(self): ...
+    def _on_connection_status(self): ...
+    def _on_connection_error(self): ...
+    def _on_connection_line(self): ...
+
 
     def start(self):
         """Begins connecting, if currently DISCONNECTED or FAILED."""
         if self._transition(CS.CONNECTING):
             self._buildup()
         else:
-            logger.warning('start() called from invalid state: %s', self._state)
+            logger.warning('`ConnectionService`: start() called from invalid state: %s', self._state)
 
     def stop(self):
         """Requests a stop, if currently CONNECTING or CONNECTED. No-ops
         otherwise."""
         if self._transition(CS.STOPPING):
             self.wrkr_close_connection.emit()
+
+
+    def shutdown(self, on_ready):
+        self.stop()
+
+        if self._state in (CS.DISCONNECTED, CS.FAILED):
+            on_ready()
+            return
+
+        loop = QEventLoop()
+
+        def _on_state_changed(s):
+            if s in (CS.DISCONNECTED, CS.FAILED):
+                self.state_changed.disconnect(_on_state_changed)
+                loop.quit()
+
+        self.state_changed.connect(_on_state_changed)
+        loop.exec_()
+        on_ready()
+
         
     def send_line(self, text):
         """Request `text` to be sent over the serial connection."""

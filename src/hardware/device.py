@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+
 from PySide6.QtCore import QIODeviceBase
 from PySide6.QtSerialPort import QSerialPort
 import serial.tools.list_ports
@@ -25,7 +28,7 @@ def connect():
     target = find_device_port()
 
     if target is None:
-        print("Device not found. Check connection.")
+        logger.info("Device not found. Check connection.")
         return None
 
     port = QSerialPort()
