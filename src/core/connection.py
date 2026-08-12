@@ -127,6 +127,14 @@ class ConnectionService(QObject):
     """Emitted to ask the worker (Connection) to send a line/realtime-byte
     through the usb port."""
 
+    status_received = Signal(dict)
+    ok_received = Signal()
+    error_received = Signal(str)
+    line_received = Signal(str)
+    """Emitted based on what line/realtime-byte has been sent through the
+    connection. Sends it up to Parent/UI to react appropriately."""
+    
+
     def __init__(self, parent=None):
         """Starts in DISCONNECTED with no worker thread or connection yet."""
         super().__init__(parent)
@@ -169,10 +177,10 @@ class ConnectionService(QObject):
         # Worker signal towards self which trigger a function
         self._connection.result.connect(self._on_connection_result)
         self._connection.closed.connect(self._on_connection_closed)
-        self._connection.status_received.connect(self._on_connection_status)
-        self._connection.ok_received.connect(self._on_connection_ok)
-        self._connection.error_received.connect(self._on_connection_error)
-        self._connection.line_received.connect(self._on_connection_line)
+        self._connection.status_received.connect(self.status_received.emit)
+        self._connection.ok_received.connect(self.ok_received.emit)
+        self._connection.error_received.connect(self.error_received.emit)
+        self._connection.line_received.connect(self.line_received.emit)
 
         # Self signals towards worker which trigger a function
         self.wrkr_close_connection.connect(self._connection.close)
@@ -211,11 +219,6 @@ class ConnectionService(QObject):
             )
 
         self._teardown()
-
-    def _on_connection_ok(self): ...
-    def _on_connection_status(self): ...
-    def _on_connection_error(self): ...
-    def _on_connection_line(self): ...
 
     def start(self):
         """Begins connecting, if currently DISCONNECTED or FAILED."""
