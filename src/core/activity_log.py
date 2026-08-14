@@ -1,4 +1,3 @@
-# activity_log.py
 from datetime import datetime
 
 class ActivityLog:

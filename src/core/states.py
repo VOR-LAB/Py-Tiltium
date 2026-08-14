@@ -1,5 +1,12 @@
 from enum import Enum, auto
 
+class QueueState(Enum):
+    RUNNING = auto()
+    CANCELLED = auto()
+    FINISHED = auto()
+    IDLE = auto()
+    UNKNOWN_ERROR = auto()
+
 class ConnectionState(Enum):
     DISCONNECTED = auto()
     CONNECTING = auto()
@@ -7,7 +14,6 @@ class ConnectionState(Enum):
     FAILED = auto()
     STOPPING = auto()
 
-
-class UICState(Enum):
-    ALLOW_INPUT = auto()
-    DISALLOW_INPUT = auto()
+class ControlMode(Enum):
+    QUEUE = auto()
+    NORMAL = auto()

@@ -1,12 +1,15 @@
+import logging
+logger = logging.getLogger(__name__)
+
 from PySide6.QtCore import QObject, Signal, Slot
+
 from core.connection import ConnectionService
 from core.activity_log import ActivityLog
 from core.states import ConnectionState as CState
-from core.protocol import jog_command, JOG_CANCEL, STATUS_QUERY
+from core.protocol import jog_command, JOG_CANCEL, STATUS_QUERY, jog_time
 
 class UIController(QObject):
 
-    #UI State Signal
     state_changed = Signal(CState)
 
     log_updated = Signal(str)
@@ -50,19 +53,12 @@ class UIController(QObject):
         else:
             self.disconnect_request()
 
-    def send_jog_line(self, dir, dist, rate):
-        match dir:
-            case 'Z+':
-                self._connection.send_line(jog_command('Z', +dist, rate))
-            case 'Z-':
-                self._connection.send_line(jog_command('Z', -dist, rate))
-            case 'A+':
-                self._connection.send_line(jog_command('A', +dist, rate))
-            case 'A-':
-                self._connection.send_line(jog_command('A', -dist, rate))
+    def req_jog_line(self, axis, dist, rate):
+        self._connection.send_line(jog_command(axis, dist, rate))
+        logger.info(f"`req_jog_line`: time taken is {jog_time(axis, dist, rate):.3f}s")
 
-    def send_jog_cancel(self):
+    def req_jog_cancel(self):
         self._connection.send_realtime(JOG_CANCEL)
 
-    def send_realtime_status(self):
+    def req_realtime_status(self):
         self._connection.send_realtime(STATUS_QUERY)

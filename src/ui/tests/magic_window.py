@@ -173,9 +173,9 @@ class MainWindow(QMainWindow):
         event.ignore()
         
 if __name__ == '__main__':
-    from controller.main_controller import UIController
+    from controller.queue_controller import QueueController
 
     app = QApplication(sys.argv)
-    window = MainWindow(UIController())
+    window = MainWindow(QueueController())
     window.show()
     sys.exit(app.exec())
