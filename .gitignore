@@ -1,3 +1,10 @@
-.venv
+build/
+dist/
+*.egg-info/
+.eggs/
 __pycache__/
-/src/py_tiltium.egg-info
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

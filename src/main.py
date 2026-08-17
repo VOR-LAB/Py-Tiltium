@@ -1,10 +1,12 @@
-import sys
 import argparse
 import logging
+import sys
 
 from PySide6.QtWidgets import QApplication
-from ui.main_window import MainWindow
+
 from core.ui_controller import UIController
+from ui.main_window import MainWindow
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -20,5 +22,6 @@ def main():
     window.show()
     sys.exit(app.exec())
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
