@@ -1,9 +1,7 @@
 import sys
 import argparse
 import logging
-from typing import assert_never
 
-from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QApplication, QFormLayout, QMainWindow, QPlainTextEdit, QPushButton, QLabel, QGridLayout, QDoubleSpinBox, QVBoxLayout, QHBoxLayout, QWidget, QStyle
 from core.states import ConnectionState as CState
 from core.protocol import MAX_DIST, MAX_RATE
@@ -35,7 +33,7 @@ class MainWindow(QMainWindow):
         self._command_queue_box.setEnabled(False);
 
         self._connection_button = QPushButton('Connect')
-        self._connection_button.clicked.connect(self.controller.connection_button_callback)
+        self._connection_button.clicked.connect(self.controller.toggle_connect_disconnect)
 
         self._rate_spin_field = QDoubleSpinBox()
         self._rate_spin_field.setDecimals(1)
@@ -53,25 +51,25 @@ class MainWindow(QMainWindow):
         self._a_minus_button = QPushButton('Left')
 
         self._jog_cancel_button = QPushButton('Cancel')
-        self._jog_cancel_button.clicked.connect(self.controller.send_jog_cancel)
+        self._jog_cancel_button.clicked.connect(self.controller.req_jog_cancle)
 
         self._req_status_button = QPushButton('Status')
-        self._req_status_button.clicked.connect(self.controller.send_realtime_status)
+        self._req_status_button.clicked.connect(self.controller.req_status)
 
         self._z_plus_button.clicked.connect(lambda:
-                                            self.controller.send_jog_line('Z',
+                                            self.controller.req_jog_line('Z',
                                                                           self._distance_spin_field.value(),
                                                                           self._rate_spin_field.value()))
         self._z_minus_button.clicked.connect(lambda:
-                                             self.controller.send_jog_line('Z',
+                                             self.controller.req_jog_line('Z',
                                                                            -self._distance_spin_field.value(),
                                                                            self._rate_spin_field.value()))
         self._a_plus_button.clicked.connect(lambda:
-                                            self.controller.send_jog_line('A',
+                                            self.controller.req_jog_line('A',
                                                                           self._distance_spin_field.value(),
                                                                           self._rate_spin_field.value()))
         self._a_minus_button.clicked.connect(lambda:
-                                             self.controller.send_jog_line('A',
+                                             self.controller.req_jog_line('A',
                                                                            -self._distance_spin_field.value(),
                                                                            self._rate_spin_field.value()))
 

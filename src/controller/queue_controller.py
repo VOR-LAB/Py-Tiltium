@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Optional, Union
 
-from PySide6.QtCore import QObject, QTimer, Signal, Slot
+from PySide6.QtCore import QTimer, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
 from controller.main_controller import UIController

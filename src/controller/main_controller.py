@@ -39,19 +39,19 @@ class UIController(QObject):
         self._connection.shutdown(on_ready);
 
     @Slot()
-    def connect_request(self):
+    def req_connect(self):
         self._connection.start()
 
     @Slot()
-    def disconnect_request(self):
+    def req_disconnect(self):
         self._connection.stop()
 
     @Slot()
-    def connection_button_callback(self):
+    def toggle_connect_disconnect(self):
         if self._conn_state in (CState.DISCONNECTED, CState.FAILED):
-            self.connect_request()
+            self.req_connect()
         else:
-            self.disconnect_request()
+            self.req_disconnect()
 
     def req_jog_line(self, axis, dist, rate):
         self._connection.send_line(jog_command(axis, dist, rate))
@@ -60,5 +60,5 @@ class UIController(QObject):
     def req_jog_cancel(self):
         self._connection.send_realtime(JOG_CANCEL)
 
-    def req_realtime_status(self):
+    def req_status(self):
         self._connection.send_realtime(STATUS_QUERY)
