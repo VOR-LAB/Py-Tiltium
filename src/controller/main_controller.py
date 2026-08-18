@@ -10,7 +10,7 @@ from core.protocol import jog_command, JOG_CANCEL, STATUS_QUERY, jog_time
 
 class UIController(QObject):
 
-    state_changed = Signal(CState)
+    conn_state_changed = Signal(CState)
 
     log_updated = Signal(str)
 
@@ -30,7 +30,7 @@ class UIController(QObject):
     @Slot(CState)
     def _on_conn_state_change(self, state):
         self._conn_state = state;
-        self.state_changed.emit(state)
+        self.conn_state_changed.emit(state)
 
     def _on_info_received(self, kind: str, payload):
         self.log_updated.emit(self._activity_log.add(kind, payload))

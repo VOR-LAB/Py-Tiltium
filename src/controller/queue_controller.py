@@ -1,17 +1,17 @@
 import logging
+
 logger = logging.getLogger(__name__)
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Optional, Union
 
 from PySide6.QtCore import QTimer, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
 from controller.main_controller import UIController
-
 from core.protocol import jog_command, jog_time
 from core.states import QueueState as QS
+
 
 class CommandKind(Enum):
     GCODE = auto()
@@ -20,7 +20,7 @@ class CommandKind(Enum):
 @dataclass
 class QueueCommand:
     kind: CommandKind
-    payload: Union[tuple[str, float], float]  # [str, float] for GCODE, float seconds for PAUSE
+    payload: tuple[str, float] | float  # [str, float] for GCODE, float seconds for PAUSE
 
 class QueueController(UIController):
     """An extension of `UIController` which handles queuing multiple commands
@@ -28,28 +28,31 @@ class QueueController(UIController):
     commands which get handled by the python code instead."""
 
     _TRANSITIONS: dict[QS, set[QS]] = {
-        QS.IDLE:          {QS.RUNNING, QS.UNKNOWN_ERROR},
+        QS.IDLE:          {QS.IDLE, QS.RUNNING, QS.UNKNOWN_ERROR},
         QS.RUNNING:       {QS.CANCELLED, QS.FINISHED, QS.UNKNOWN_ERROR},
         QS.FINISHED:      {QS.IDLE, QS.UNKNOWN_ERROR},
         QS.CANCELLED:     {QS.IDLE, QS.UNKNOWN_ERROR},
         QS.UNKNOWN_ERROR: set(),
     }
 
-    state_changed = Signal(QS)
-    """emitted when a state transition has occurred."""
+    queue_state_changed = Signal(QS)
+    """Emitted when a state transition has occurred."""
+
+    current_queue = Signal(str)
+    """Emitted whenever the current queue changes."""
 
     current_command_changed = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._state = QS.IDLE
-        self._current_command: Optional[QueueCommand] = None
+        self._current_command: QueueCommand | None = None
 
         self._queue: list[QueueCommand] = []
 
         self._queue_timer = QTimer(self)
         self._queue_timer.setSingleShot(True)
-        self._queue_timer.timeout.connect(self.req_realtime_status)
+        self._queue_timer.timeout.connect(self.req_status)
 
         self._connection.status_received.connect(self._insure_idle)
 
@@ -61,12 +64,14 @@ class QueueController(UIController):
         """
         if new_state not in self._TRANSITIONS[self._state]:
             return False
+        if new_state == self._state:
+            return True
         self._state = new_state
-        self.state_changed.emit(new_state)
+        self.queue_state_changed.emit(new_state)
         logger.info('`QueueController`: State changed to %s', self._state)
         return True
 
-    def queue_jog_line(self, axis, dist, rate):
+    def req_jog_line(self, axis, dist, rate):
         if self._state is QS.IDLE:
             self._queue.append(QueueCommand(CommandKind.GCODE, 
                                             (jog_command(axis, 
@@ -75,22 +80,43 @@ class QueueController(UIController):
                                              jog_time(axis, 
                                                       dist, 
                                                       rate))))
+            self._emit_current_queue()
         else:
             logger.warning("`QueueController`: Tried queuing while not idle.")
 
-    def queue_pause(self, dur: float):
+    def req_pause(self, dur: float):
         if self._state is QS.IDLE:
             self._queue.append(QueueCommand(CommandKind.PAUSE, dur))
+            self._emit_current_queue()
         else:
             logger.warning("`QueueController`: Tried queuing while not idle.")
 
     def clear(self):
-        """Discard the queue without running it."""
-        if self._state is QS.IDLE:
+        """Discard the queue without running it, resetting to idle if needed."""
+        if self._transition(QS.IDLE):
             self._queue.clear()
             self._queue_timer.stop()
+            self._emit_current_queue()
         else:
-            logger.warning("`QueueController`: Tried clearing the queue while not idle.")
+            logger.warning(f"`QueueController`: Cannot clear, state: {self._state}")
+
+    def _emit_current_queue(self):
+        """Format the current command and remaining queue as one string
+        and emit it via `current_queue`."""
+        lines = []
+        if self._current_command is not None:
+            lines.append(f'> {self._describe(self._current_command)}')
+        lines.extend(f'  {self._describe(cmd)}' for cmd in self._queue)
+        self.current_queue.emit('\n'.join(lines) if lines else '(queue empty)')
+
+    def _describe(self, cmd: QueueCommand) -> str:
+        """Render a single QueueCommand as one human-readable line."""
+        match cmd.kind:
+            case CommandKind.GCODE:
+                line, t = cmd.payload
+                return f'{line}  ({t:.2f}s)'
+            case CommandKind.PAUSE:
+                return f'PAUSE {cmd.payload:.2f}s'
 
     def start(self):
         """Begin executing the queue in order."""
@@ -136,6 +162,8 @@ class QueueController(UIController):
                     assert isinstance(payload, float)
                     self._queue_timer.start(int(payload * 1000))
 
+            self._emit_current_queue()
+
     @Slot(dict)
     def _insure_idle(self, status):
         if self._state == QS.RUNNING:
@@ -171,8 +199,3 @@ class QueueController(UIController):
                     logger.warning("`QueueController`: Already idle, use clear instead.")
                 case QS.UNKNOWN_ERROR:
                     logger.warning("`QueueController`: An unknown error has occured...")
-                    
-
-    def reset(self):
-        if not self._transition(QS.IDLE):
-            logger.warning(f"`QueueController`: Cannot go idle, state: {self._state}")

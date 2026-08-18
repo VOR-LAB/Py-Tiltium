@@ -1,10 +1,24 @@
-import sys
 import argparse
 import logging
+import sys
 
-from PySide6.QtWidgets import QApplication, QFormLayout, QMainWindow, QPlainTextEdit, QPushButton, QLabel, QGridLayout, QDoubleSpinBox, QVBoxLayout, QHBoxLayout, QWidget, QStyle
-from core.states import ConnectionState as CState
+from PySide6.QtWidgets import (
+    QApplication,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPlainTextEdit,
+    QPushButton,
+    QStyle,
+    QVBoxLayout,
+    QWidget,
+)
+
 from core.protocol import MAX_DIST, MAX_RATE
+from core.states import ConnectionState as CState
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-v", "--verbose", action="count", default=0)
@@ -20,7 +34,7 @@ class MainWindow(QMainWindow):
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
-        self.controller.state_changed.connect(self.conn_state_changed)
+        self.controller.conn_state_changed.connect(self.conn_state_changed)
 
         self._connection_status = QLabel('Device not connected.')
 
@@ -38,12 +52,12 @@ class MainWindow(QMainWindow):
         self._rate_spin_field = QDoubleSpinBox()
         self._rate_spin_field.setDecimals(1)
         self._rate_spin_field.setRange(0.0, MAX_RATE)
-        self._rate_spin_field.setSingleStep(10)
+        self._rate_spin_field.setSingleStep(5)
 
         self._distance_spin_field = QDoubleSpinBox()
         self._distance_spin_field.setDecimals(1)
         self._distance_spin_field.setRange(0.0, MAX_DIST)
-        self._distance_spin_field.setSingleStep(0.1)
+        self._distance_spin_field.setSingleStep(10)
 
         self._z_plus_button  = QPushButton('Up')
         self._z_minus_button = QPushButton('Down')
@@ -51,7 +65,7 @@ class MainWindow(QMainWindow):
         self._a_minus_button = QPushButton('Left')
 
         self._jog_cancel_button = QPushButton('Cancel')
-        self._jog_cancel_button.clicked.connect(self.controller.req_jog_cancle)
+        self._jog_cancel_button.clicked.connect(self.controller.req_jog_cancel)
 
         self._req_status_button = QPushButton('Status')
         self._req_status_button.clicked.connect(self.controller.req_status)
@@ -73,16 +87,20 @@ class MainWindow(QMainWindow):
                                                                            -self._distance_spin_field.value(),
                                                                            self._rate_spin_field.value()))
 
-        self._z_plus_button.setIcon(self._z_plus_button.style()
+        self._z_plus_button.setIcon(self._z_plus_button
+                                    .style()
                                     .standardIcon(QStyle.StandardPixmap.
                                                   SP_ArrowUp))
-        self._z_minus_button.setIcon(self._z_minus_button .style()
+        self._z_minus_button.setIcon(self._z_minus_button
+                                     .style()
                                      .standardIcon(QStyle.StandardPixmap.
                                                    SP_ArrowDown))
-        self._a_plus_button.setIcon(self._a_plus_button .style()
+        self._a_plus_button.setIcon(self._a_plus_button
+                                    .style()
                                     .standardIcon(QStyle.StandardPixmap.
                                                   SP_ArrowRight))
-        self._a_minus_button.setIcon(self._a_minus_button.style()
+        self._a_minus_button.setIcon(self._a_minus_button
+                                     .style()
                                      .standardIcon(QStyle.StandardPixmap.
                                                    SP_ArrowLeft))
 
@@ -117,8 +135,6 @@ class MainWindow(QMainWindow):
         arrow_grid.addWidget(self._a_plus_button, 1, 2)
         button_panel.addLayout(arrow_grid)
 
-        additional_commands = QFormLayout()
-
         center_layout.addLayout(button_panel)
 
         bottom_bar = QHBoxLayout()
@@ -133,7 +149,6 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
-
 
     def _on_controller_status(self, status: dict):
         self._log_box.appendPlainText(status['state']);

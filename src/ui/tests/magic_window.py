@@ -1,12 +1,25 @@
-import sys
 import argparse
 import logging
-from typing import assert_never
+import sys
 
-from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QApplication, QFormLayout, QMainWindow, QPlainTextEdit, QPushButton, QLabel, QGridLayout, QDoubleSpinBox, QVBoxLayout, QHBoxLayout, QWidget, QStyle
-from core.states import ConnectionState as CState
+from PySide6.QtWidgets import (
+    QApplication,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QPlainTextEdit,
+    QPushButton,
+    QStyle,
+    QVBoxLayout,
+    QWidget,
+)
+
 from core.protocol import MAX_DIST, MAX_RATE
+from core.states import ConnectionState as CState
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-v", "--verbose", action="count", default=0)
@@ -22,123 +35,175 @@ class MainWindow(QMainWindow):
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
-        self.controller.state_changed.connect(self.conn_state_changed)
-
-        self._connection_status = QLabel('Device not connected.')
-
-        self._log_box = QPlainTextEdit();
-        self._log_box.setEnabled(False);
-
-        self.controller.log_updated.connect(self._log_box.setPlainText)
-        
-        self._command_queue_box = QPlainTextEdit();
-        self._command_queue_box.setEnabled(False);
-
-        self._connection_button = QPushButton('Connect')
-        self._connection_button.clicked.connect(self.controller.connection_button_callback)
-
-        self._rate_spin_field = QDoubleSpinBox()
-        self._rate_spin_field.setDecimals(1)
-        self._rate_spin_field.setRange(0.0, MAX_RATE)
-        self._rate_spin_field.setSingleStep(10)
-
-        self._distance_spin_field = QDoubleSpinBox()
-        self._distance_spin_field.setDecimals(1)
-        self._distance_spin_field.setRange(0.0, MAX_DIST)
-        self._distance_spin_field.setSingleStep(0.1)
-
-        self._z_plus_button  = QPushButton('Up')
-        self._z_minus_button = QPushButton('Down')
-        self._a_plus_button  = QPushButton('Right')
-        self._a_minus_button = QPushButton('Left')
-
-        self._jog_cancel_button = QPushButton('Cancel')
-        self._jog_cancel_button.clicked.connect(self.controller.send_jog_cancel)
-
-        self._req_status_button = QPushButton('Status')
-        self._req_status_button.clicked.connect(self.controller.send_realtime_status)
-
-        self._z_plus_button.clicked.connect(lambda:
-                                            self.controller.send_jog_line('Z',
-                                                                          self._distance_spin_field.value(),
-                                                                          self._rate_spin_field.value()))
-        self._z_minus_button.clicked.connect(lambda:
-                                             self.controller.send_jog_line('Z',
-                                                                           -self._distance_spin_field.value(),
-                                                                           self._rate_spin_field.value()))
-        self._a_plus_button.clicked.connect(lambda:
-                                            self.controller.send_jog_line('A',
-                                                                          self._distance_spin_field.value(),
-                                                                          self._rate_spin_field.value()))
-        self._a_minus_button.clicked.connect(lambda:
-                                             self.controller.send_jog_line('A',
-                                                                           -self._distance_spin_field.value(),
-                                                                           self._rate_spin_field.value()))
-
-        self._z_plus_button.setIcon(self._z_plus_button.style()
-                                    .standardIcon(QStyle.StandardPixmap.
-                                                  SP_ArrowUp))
-        self._z_minus_button.setIcon(self._z_minus_button .style()
-                                     .standardIcon(QStyle.StandardPixmap.
-                                                   SP_ArrowDown))
-        self._a_plus_button.setIcon(self._a_plus_button .style()
-                                    .standardIcon(QStyle.StandardPixmap.
-                                                  SP_ArrowRight))
-        self._a_minus_button.setIcon(self._a_minus_button.style()
-                                     .standardIcon(QStyle.StandardPixmap.
-                                                   SP_ArrowLeft))
 
         # Layout starts here.
         layout = QVBoxLayout()
 
-        tool_bar = QHBoxLayout()
-
-        tool_bar.addWidget(self._connection_status)
-        tool_bar.addWidget(self._connection_button)
-        layout.addLayout(tool_bar)
+        top_bar_layout = QHBoxLayout()
+        layout.addLayout(top_bar_layout)
 
         center_layout = QHBoxLayout()
-
-        command_space_layout = QVBoxLayout()
-        command_space_layout.addWidget(self._log_box);
-        command_space_layout.addWidget(self._command_queue_box);
-        center_layout.addLayout(command_space_layout)
-
-        button_panel = QVBoxLayout()
-
-        trajectory_setting = QFormLayout()
-        trajectory_setting.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-        trajectory_setting.addRow('Distance:', self._distance_spin_field)
-        trajectory_setting.addRow('Rate:', self._rate_spin_field)
-        button_panel.addLayout(trajectory_setting)
-
-        arrow_grid = QGridLayout()
-        arrow_grid.addWidget(self._z_plus_button, 0, 1)
-        arrow_grid.addWidget(self._z_minus_button, 2, 1)
-        arrow_grid.addWidget(self._a_minus_button, 1, 0)
-        arrow_grid.addWidget(self._a_plus_button, 1, 2)
-        button_panel.addLayout(arrow_grid)
-
-        additional_commands = QFormLayout()
-
-        center_layout.addLayout(button_panel)
-
-        bottom_bar = QHBoxLayout()
-        bottom_bar.addWidget(self._req_status_button)
-        bottom_bar.addWidget(self._jog_cancel_button)
-
         layout.addLayout(center_layout)
 
-        layout.addLayout(bottom_bar)
+        bottom_bar_layout = QHBoxLayout()
+        layout.addLayout(bottom_bar_layout)
+
+        # --- top bar (layout_box[0]) ---
+        self._connection_status = QLabel('Device not connected.')
+        top_bar_layout.addWidget(self._connection_status)
+
+        self._connection_button = QPushButton('Connect')
+        top_bar_layout.addWidget(self._connection_button)
+
+        # --- center layout (layout_box[1]) ---
+        activity_panel_layout = QVBoxLayout()
+        center_layout.addLayout(activity_panel_layout)
+
+        button_panel_layout = QVBoxLayout()
+        center_layout.addLayout(button_panel_layout)
+
+        # --- activity panel (center_box[0]) ---
+        state_info_layout = QHBoxLayout()
+        activity_panel_layout.addLayout(state_info_layout)
+
+        self._conn_state_box = QLineEdit()
+        state_info_layout.addWidget(self._conn_state_box)
+
+        self._queue_state_box = QLineEdit()
+        state_info_layout.addWidget(self._queue_state_box)
+
+        self._log_box = QPlainTextEdit()
+        activity_panel_layout.addWidget(self._log_box)
+
+        self._command_queue_box = QPlainTextEdit()
+        activity_panel_layout.addWidget(self._command_queue_box)
+
+        activity_buttons_layout = QHBoxLayout()
+        activity_panel_layout.addLayout(activity_buttons_layout)
+
+        self._req_status_button = QPushButton('Status')
+        self._queue_clear_button = QPushButton('Clear')
+        activity_buttons_layout.addWidget(self._req_status_button)
+        activity_buttons_layout.addWidget(self._queue_clear_button)
+
+        # --- button panel (center_box[1]) ---
+        trajectory_setting = QFormLayout()
+        button_panel_layout.addLayout(trajectory_setting)
+        trajectory_setting.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        arrow_grid = QGridLayout()
+        button_panel_layout.addLayout(arrow_grid)
+
+        self._distance_spin_field = QDoubleSpinBox()
+        trajectory_setting.addRow('Distance:', self._distance_spin_field)
+
+        self._rate_spin_field = QDoubleSpinBox()
+        trajectory_setting.addRow('Rate:', self._rate_spin_field)
+
+        self._duration_spin_field = QDoubleSpinBox()
+        trajectory_setting.addRow('Pause Duration:', self._duration_spin_field)
+
+        self._z_plus_button  = QPushButton('Up')
+        arrow_grid.addWidget(self._z_plus_button, 0, 1)
+
+        self._z_minus_button = QPushButton('Down')
+        arrow_grid.addWidget(self._z_minus_button, 2, 1)
+
+        self._pause_button = QPushButton("Pause")
+        arrow_grid.addWidget(self._pause_button, 1, 1)
+
+        self._a_plus_button  = QPushButton('Right')
+        arrow_grid.addWidget(self._a_plus_button, 1, 2)
+
+        self._a_minus_button = QPushButton('Left')
+        arrow_grid.addWidget(self._a_minus_button, 1, 0)
+
+        self._start_button = QPushButton('Start')
+        self._req_cancel_button = QPushButton('Cancel')
+        button_panel_layout.addWidget(self._start_button)
+        button_panel_layout.addWidget(self._req_cancel_button)
+
+        # --- bottom_bar (layout_box[2]) ---
         # Layout ends here.
 
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
 
+        self.controller.conn_state_changed.connect(self.conn_state_changed)
+        self.controller.current_queue.connect(self._command_queue_box.setPlainText)
+        self.controller.log_updated.connect(self._log_box.setPlainText)
+
+        self._conn_state_box.setReadOnly(True)
+        self._conn_state_box.setText('CS.DISCONNECTED')
+        self._queue_state_box.setReadOnly(True)
+        self._queue_state_box.setText('QS.IDLE')
+
+        self.controller.conn_state_changed.connect(lambda s: self._conn_state_box.setText(f"CS.{s.name}"))
+        self.controller.queue_state_changed.connect(lambda s: self._queue_state_box.setText(f"QS.{s.name}"))
+
+        self._log_box.setReadOnly(True)
+        self._command_queue_box.setReadOnly(True)
+
+        self._connection_button.clicked.connect(self.controller.toggle_connect_disconnect)
+
+        self._rate_spin_field.setDecimals(1)
+        self._rate_spin_field.setRange(0.0, MAX_RATE)
+        self._rate_spin_field.setValue(180.0)
+        self._rate_spin_field.setSingleStep(5)
+
+        self._distance_spin_field.setDecimals(1)
+        self._distance_spin_field.setRange(0.0, MAX_DIST)
+        self._distance_spin_field.setValue(30.0)
+        self._distance_spin_field.setSingleStep(10)
+
+        self._duration_spin_field.setDecimals(2)
+        self._duration_spin_field.setRange(0.0, 60.0)
+        self._duration_spin_field.setValue(10.0)
+        self._duration_spin_field.setSingleStep(0.1)
+
+        self._req_cancel_button.clicked.connect(self.controller.req_jog_cancel)
+        self._req_status_button.clicked.connect(self.controller.req_status)
+        self._queue_clear_button.clicked.connect(self.controller.clear)
+
+        self._z_plus_button.clicked.connect(lambda:
+                                            self.controller.req_jog_line('Z',
+                                                                         self._distance_spin_field.value(),
+                                                                         self._rate_spin_field.value()))
+        self._z_minus_button.clicked.connect(lambda:
+                                             self.controller.req_jog_line('Z',
+                                                                          -self._distance_spin_field.value(),
+                                                                          self._rate_spin_field.value()))
+        self._a_plus_button.clicked.connect(lambda:
+                                            self.controller.req_jog_line('A',
+                                                                         self._distance_spin_field.value(),
+                                                                         self._rate_spin_field.value()))
+        self._a_minus_button.clicked.connect(lambda:
+                                             self.controller.req_jog_line('A',
+                                                                          -self._distance_spin_field.value(),
+                                                                          self._rate_spin_field.value()))
+
+        self._pause_button.clicked.connect(lambda: self.controller.req_pause(self._duration_spin_field.value()))
+
+        self._z_plus_button.setIcon(self._z_plus_button
+                                    .style()
+                                    .standardIcon(QStyle.StandardPixmap.
+                                                  SP_ArrowUp))
+        self._z_minus_button.setIcon(self._z_minus_button
+                                     .style()
+                                     .standardIcon(QStyle.StandardPixmap.
+                                                   SP_ArrowDown))
+        self._a_plus_button.setIcon(self._a_plus_button
+                                    .style()
+                                    .standardIcon(QStyle.StandardPixmap.
+                                                  SP_ArrowRight))
+        self._a_minus_button.setIcon(self._a_minus_button
+                                     .style()
+                                     .standardIcon(QStyle.StandardPixmap.
+                                                   SP_ArrowLeft))
 
     def _on_controller_status(self, status: dict):
-        self._log_box.appendPlainText(status['state']);
+        self._log_box.appendPlainText(status['state'])
         
     def conn_state_changed(self, states):
         match states:
