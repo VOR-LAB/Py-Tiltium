@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QApplication
 from controller.main_controller import UIController
 from core.protocol import jog_command, jog_time
 from core.states import QueueState as QS
-
+from core.states import ConnectionState as CState
 
 class CommandKind(Enum):
     GCODE = auto()
@@ -45,7 +45,7 @@ class QueueController(UIController):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._state = QS.IDLE
+        self._state = QS.FINISHED
         self._current_command: QueueCommand | None = None
 
         self._queue: list[QueueCommand] = []
@@ -55,6 +55,7 @@ class QueueController(UIController):
         self._queue_timer.timeout.connect(self.req_status)
 
         self._connection.status_received.connect(self._insure_idle)
+        self.conn_state_changed.connect(self._on_conn_state_changed)
 
     def _transition(self, new_state: QS) -> bool:
         """Attempt to move to new_state.
@@ -113,13 +114,17 @@ class QueueController(UIController):
         """Render a single QueueCommand as one human-readable line."""
         match cmd.kind:
             case CommandKind.GCODE:
+                assert isinstance(cmd.payload, tuple)
                 line, t = cmd.payload
-                return f'{line}  ({t:.2f}s)'
+                return f'{line}  ({t:.2f}s + 0.5s(slack))'
             case CommandKind.PAUSE:
                 return f'PAUSE {cmd.payload:.2f}s'
 
     def start(self):
         """Begin executing the queue in order."""
+        if self._conn_state is not CState.CONNECTED:
+            logger.warning("`QueueController`: Cannot start, not connected.")
+            return
         if self._transition(QS.RUNNING):
             self._advance()
         else:
@@ -140,11 +145,15 @@ class QueueController(UIController):
                 if self._transition(QS.FINISHED):
                     self._current_command = None
                     self.current_command_changed.emit(None)
+
+                    self._emit_current_queue()
                     return
                 elif self._transition(QS.UNKNOWN_ERROR):
                     logger.error("`QueueController`: I have no clue what may have caused this...")
                     self._current_command = None
                     self.current_command_changed.emit(None)
+
+                    self._emit_current_queue()
                     return
 
             self._current_command = self._queue.pop(0)
@@ -157,7 +166,7 @@ class QueueController(UIController):
                     assert isinstance(payload, tuple)
                     line, t = payload
                     self._connection.send_line(line)
-                    self._queue_timer.start(int((t + 0.1) * 1000))
+                    self._queue_timer.start(int((t + 0.5) * 1000))
                 case CommandKind.PAUSE:
                     assert isinstance(payload, float)
                     self._queue_timer.start(int(payload * 1000))
@@ -166,7 +175,7 @@ class QueueController(UIController):
 
     @Slot(dict)
     def _insure_idle(self, status):
-        if self._state == QS.RUNNING:
+        if self._state == QS.RUNNING and not self._queue_timer.isActive():
             state = status['state']
             if state == 'Idle':
                 self._advance()
@@ -181,6 +190,12 @@ class QueueController(UIController):
                 assert app is not None
                 app.exit(1)
 
+    @Slot(CState)
+    def _on_conn_state_changed(self, state):
+        if self._state is QS.RUNNING and state is not CState.CONNECTED:
+            logger.warning("`QueueController`: Connection lost, cancelling.")
+            self.req_jog_cancel()
+    
     def req_jog_cancel(self):
         if self._transition(QS.CANCELLED):
             super().req_jog_cancel()

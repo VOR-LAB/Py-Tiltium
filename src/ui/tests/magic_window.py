@@ -165,6 +165,7 @@ class MainWindow(QMainWindow):
         self._req_cancel_button.clicked.connect(self.controller.req_jog_cancel)
         self._req_status_button.clicked.connect(self.controller.req_status)
         self._queue_clear_button.clicked.connect(self.controller.clear)
+        self._start_button.clicked.connect(self.controller.start)
 
         self._z_plus_button.clicked.connect(lambda:
                                             self.controller.req_jog_line('Z',

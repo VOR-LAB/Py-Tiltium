@@ -14,7 +14,7 @@ class ActivityLog:
 
     @property
     def text(self) -> str:
-        return "\n".join(self._lines)
+        return "\n".join(reversed(self._lines))
 
     def _format(self, kind: str, payload) -> str:
         ts = datetime.now().strftime("%H:%M:%S")
