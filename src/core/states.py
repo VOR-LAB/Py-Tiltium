@@ -1,5 +1,6 @@
 from enum import Enum, auto
 
+
 class ConnectionState(Enum):
     DISCONNECTED = auto()
     CONNECTING = auto()

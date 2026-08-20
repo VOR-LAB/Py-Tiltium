@@ -1,9 +1,23 @@
-import sys
 import argparse
 import logging
-from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QGridLayout, QDoubleSpinBox, QVBoxLayout, QHBoxLayout, QWidget, QStyle
-from core.states import ConnectionState as CState
+import sys
+
+from PySide6.QtWidgets import (
+    QApplication,
+    QDoubleSpinBox,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QStyle,
+    QVBoxLayout,
+    QWidget,
+)
+
 from core.protocol import MAX_DIST
+from core.states import ConnectionState as CState
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-v", "--verbose", action="count", default=0)
 args = parser.parse_args()
@@ -13,33 +27,41 @@ level = levels[min(args.verbose, len(levels) - 1)]
 
 logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
+
 class MainWindow(QMainWindow):
-    
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
 
-        self._connection_status = QLabel('Device not connected.')
+        self._connection_status = QLabel("Device not connected.")
         controller.state_changed.connect(self._state_changed)
 
-        self._connection_button = QPushButton('Connect')
+        self._connection_button = QPushButton("Connect")
         self._connection_button.clicked.connect(self.controller.connection_button_callback)
 
         self._magnitude_box = QDoubleSpinBox()
         self._magnitude_box.setDecimals(1)
         self._magnitude_box.setRange(0.0, MAX_DIST)
 
-        self._z_plus_button = QPushButton('Up')
-        self._z_minus_button = QPushButton('Down')
-        self._a_plus_button = QPushButton('Right')
-        self._a_minus_button = QPushButton('Left')
+        self._z_plus_button = QPushButton("Up")
+        self._z_minus_button = QPushButton("Down")
+        self._a_plus_button = QPushButton("Right")
+        self._a_minus_button = QPushButton("Left")
 
-        self._z_plus_button.clicked.connect(lambda: self.controller.send_jog_line('Z+', self._magnitude_box.value()))
-        self._z_minus_button.clicked.connect(lambda: self.controller.send_jog_line('Z-', self._magnitude_box.value()))
-        self._a_plus_button.clicked.connect(lambda: self.controller.send_jog_line('A+', self._magnitude_box.value()))
-        self._a_minus_button.clicked.connect(lambda: self.controller.send_jog_line('A-', self._magnitude_box.value()))
+        self._z_plus_button.clicked.connect(
+            lambda: self.controller.send_jog_line("Z+", self._magnitude_box.value())
+        )
+        self._z_minus_button.clicked.connect(
+            lambda: self.controller.send_jog_line("Z-", self._magnitude_box.value())
+        )
+        self._a_plus_button.clicked.connect(
+            lambda: self.controller.send_jog_line("A+", self._magnitude_box.value())
+        )
+        self._a_minus_button.clicked.connect(
+            lambda: self.controller.send_jog_line("A-", self._magnitude_box.value())
+        )
 
-        self._jog_cancel_button = QPushButton('Cancel')
+        self._jog_cancel_button = QPushButton("Cancel")
         self._jog_cancel_button.clicked.connect(self.controller.send_jog_cancel)
 
         # self._z_plus_button.pressed.connect(lambda: self.controller.arrow_button_pressed('Z+'))
@@ -52,10 +74,18 @@ class MainWindow(QMainWindow):
         # self._a_plus_button.released.connect(lambda: self.controller.arrow_button_released())
         # self._a_minus_button.released.connect(lambda: self.controller.arrow_button_released())
 
-        self._z_plus_button.setIcon(self._z_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowUp))
-        self._z_minus_button.setIcon(self._z_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
-        self._a_plus_button.setIcon(self._a_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight))
-        self._a_minus_button.setIcon(self._a_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowLeft))
+        self._z_plus_button.setIcon(
+            self._z_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowUp)
+        )
+        self._z_minus_button.setIcon(
+            self._z_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown)
+        )
+        self._a_plus_button.setIcon(
+            self._a_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight)
+        )
+        self._a_minus_button.setIcon(
+            self._a_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowLeft)
+        )
 
         # Layout starts here.
         layout = QVBoxLayout()
@@ -82,7 +112,7 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
-        
+
     def _state_changed(self, states):
         match states:
             case CState.DISCONNECTED:
@@ -111,8 +141,9 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         self.controller.shutdown(self.close)
         event.ignore()
-        
-if __name__ == '__main__':
+
+
+if __name__ == "__main__":
     from core.ui_controller import UIController
 
     app = QApplication(sys.argv)

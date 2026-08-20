@@ -1,13 +1,17 @@
 import logging
-logger = logging.getLogger(__name__)
+from typing import ClassVar
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot, QEventLoop
+from PySide6.QtCore import QEventLoop, QObject, QThread, Signal, Slot
 from PySide6.QtSerialPort import QSerialPort
+
 from core import status
 from core.states import ConnectionState as CS
 from hardware import device
 
-# Connection handles QSerialPort object for sending and receiving 
+logger = logging.getLogger(__name__)
+
+
+# Connection handles QSerialPort object for sending and receiving
 # information over the serial connection.
 class Connection(QObject):
     result = Signal(bool)
@@ -21,14 +25,14 @@ class Connection(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._port: QSerialPort | None = None
-        self._buffer = ''
+        self._buffer = ""
 
     def _on_ready_read(self):
         if self._port is not None:
-            self._buffer += bytes(self._port.readAll().data()).decode('utf-8', errors='ignore')
+            self._buffer += bytes(self._port.readAll().data()).decode("utf-8", errors="ignore")
 
-        while '\n' in self._buffer:
-            line, self._buffer = self._buffer.split('\n', 1)
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
             self._handle_line(line)
 
     def _on_error(self, err):
@@ -36,27 +40,26 @@ class Connection(QObject):
             case QSerialPort.SerialPortError.NoError:
                 pass
             case _:
-                logger.error('serial port error: %s', err)
+                logger.error("serial port error: %s", err)
                 self.close()
 
     def _handle_line(self, line: str):
         line = line.strip()
         if not line:
             return
-        if line.startswith('<'):
+        if line.startswith("<"):
             self.status_received.emit(status.parse_status(line))
-        elif line == 'ok':
+        elif line == "ok":
             self.ok_received.emit()
-        elif line.startswith('error:'):
+        elif line.startswith("error:"):
             self.error_received.emit(line)
         else:
             self.line_received.emit(line)
 
-
     @Slot(str)
     def send_line(self, text: str):
         if self._port is not None:
-            self._port.write((text + '\n').encode('utf-8'))
+            self._port.write((text + "\n").encode("utf-8"))
 
     @Slot(bytes)
     def send_realtime(self, byte: bytes):
@@ -80,7 +83,7 @@ class Connection(QObject):
             self._port.close()
 
         self._port = None
-        self._buffer = ''
+        self._buffer = ""
         self.closed.emit()
 
 
@@ -100,7 +103,7 @@ class ConnectionService(QObject):
     directly anywhere else in this class.
     """
 
-    _TRANSITIONS: dict[CS, set[CS]] = {
+    _TRANSITIONS: ClassVar[dict[CS, set[CS]]] = {
         CS.DISCONNECTED: {CS.CONNECTING},
         CS.CONNECTING: {CS.CONNECTED, CS.FAILED, CS.STOPPING},
         CS.CONNECTED: {CS.STOPPING, CS.DISCONNECTED},
@@ -141,7 +144,7 @@ class ConnectionService(QObject):
             return False
         self._state = new_state
         self.state_changed.emit(new_state)
-        logger.info('`ConnectionService`: State changed to %s', self._state)
+        logger.info("`ConnectionService`: State changed to %s", self._state)
         return True
 
     def _teardown(self):
@@ -198,10 +201,14 @@ class ConnectionService(QObject):
     @Slot()
     def _on_connection_closed(self):
         """Handles Connection.closed -- confirmation the port is shut."""
-        if self._transition(CS.DISCONNECTED): ...
-        elif self._transition(CS.FAILED): ...
+        if self._transition(CS.DISCONNECTED):
+            ...
+        elif self._transition(CS.FAILED):
+            ...
         else:
-            logger.warning('`ConnectionService`: closed received in unexpected state: %s', self._state)
+            logger.warning(
+                "`ConnectionService`: closed received in unexpected state: %s", self._state
+            )
 
         self._teardown()
 
@@ -210,20 +217,20 @@ class ConnectionService(QObject):
     def _on_connection_error(self): ...
     def _on_connection_line(self): ...
 
-
     def start(self):
         """Begins connecting, if currently DISCONNECTED or FAILED."""
         if self._transition(CS.CONNECTING):
             self._buildup()
         else:
-            logger.warning('`ConnectionService`: start() called from invalid state: %s', self._state)
+            logger.warning(
+                "`ConnectionService`: start() called from invalid state: %s", self._state
+            )
 
     def stop(self):
         """Requests a stop, if currently CONNECTING or CONNECTED. No-ops
         otherwise."""
         if self._transition(CS.STOPPING):
             self.wrkr_close_connection.emit()
-
 
     def shutdown(self, on_ready):
         self.stop()
@@ -243,7 +250,6 @@ class ConnectionService(QObject):
         loop.exec_()
         on_ready()
 
-        
     def send_line(self, text):
         """Request `text` to be sent over the serial connection."""
         if self._state is CS.CONNECTED:
