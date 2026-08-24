@@ -4,7 +4,7 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from core.ui_controller import UIController
+from controller.main_controller import UIController
 from ui.main_window import MainWindow
 
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "py-tiltium"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
     "pyside6",
     "pyserial",

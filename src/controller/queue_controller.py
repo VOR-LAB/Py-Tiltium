@@ -1,37 +1,40 @@
 import logging
-
-logger = logging.getLogger(__name__)
-
 from dataclasses import dataclass
 from enum import Enum, auto
+from typing import ClassVar
 
 from PySide6.QtCore import QTimer, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
 from controller.main_controller import UIController
 from core.protocol import jog_command, jog_time
-from core.states import QueueState as QS
 from core.states import ConnectionState as CState
+from core.states import QueueState as QS
+
+logger = logging.getLogger(__name__)
+
 
 class CommandKind(Enum):
     GCODE = auto()
     PAUSE = auto()
+
 
 @dataclass
 class QueueCommand:
     kind: CommandKind
     payload: tuple[str, float] | float  # [str, float] for GCODE, float seconds for PAUSE
 
+
 class QueueController(UIController):
     """An extension of `UIController` which handles queuing multiple commands
     before executing them on the grbrHAL controller. Includes non-GCode
     commands which get handled by the python code instead."""
 
-    _TRANSITIONS: dict[QS, set[QS]] = {
-        QS.IDLE:          {QS.IDLE, QS.RUNNING, QS.UNKNOWN_ERROR},
-        QS.RUNNING:       {QS.CANCELLED, QS.FINISHED, QS.UNKNOWN_ERROR},
-        QS.FINISHED:      {QS.IDLE, QS.UNKNOWN_ERROR},
-        QS.CANCELLED:     {QS.IDLE, QS.UNKNOWN_ERROR},
+    _TRANSITIONS: ClassVar[dict[QS, set[QS]]] = {
+        QS.IDLE: {QS.IDLE, QS.RUNNING, QS.UNKNOWN_ERROR},
+        QS.RUNNING: {QS.CANCELLED, QS.FINISHED, QS.UNKNOWN_ERROR},
+        QS.FINISHED: {QS.IDLE, QS.UNKNOWN_ERROR},
+        QS.CANCELLED: {QS.IDLE, QS.UNKNOWN_ERROR},
         QS.UNKNOWN_ERROR: set(),
     }
 
@@ -69,18 +72,16 @@ class QueueController(UIController):
             return True
         self._state = new_state
         self.queue_state_changed.emit(new_state)
-        logger.info('`QueueController`: State changed to %s', self._state)
+        logger.info("`QueueController`: State changed to %s", self._state)
         return True
 
     def req_jog_line(self, axis, dist, rate):
         if self._state is QS.IDLE:
-            self._queue.append(QueueCommand(CommandKind.GCODE, 
-                                            (jog_command(axis, 
-                                                         dist, 
-                                                         rate), 
-                                             jog_time(axis, 
-                                                      dist, 
-                                                      rate))))
+            self._queue.append(
+                QueueCommand(
+                    CommandKind.GCODE, (jog_command(axis, dist, rate), jog_time(axis, dist, rate))
+                )
+            )
             self._emit_current_queue()
         else:
             logger.warning("`QueueController`: Tried queuing while not idle.")
@@ -106,9 +107,9 @@ class QueueController(UIController):
         and emit it via `current_queue`."""
         lines = []
         if self._current_command is not None:
-            lines.append(f'> {self._describe(self._current_command)}')
-        lines.extend(f'  {self._describe(cmd)}' for cmd in self._queue)
-        self.current_queue.emit('\n'.join(lines) if lines else '(queue empty)')
+            lines.append(f"> {self._describe(self._current_command)}")
+        lines.extend(f"  {self._describe(cmd)}" for cmd in self._queue)
+        self.current_queue.emit("\n".join(lines) if lines else "(queue empty)")
 
     def _describe(self, cmd: QueueCommand) -> str:
         """Render a single QueueCommand as one human-readable line."""
@@ -116,9 +117,9 @@ class QueueController(UIController):
             case CommandKind.GCODE:
                 assert isinstance(cmd.payload, tuple)
                 line, t = cmd.payload
-                return f'{line}  ({t:.2f}s + 0.5s(slack))'
+                return f"{line}  ({t:.2f}s + 0.5s(slack))"
             case CommandKind.PAUSE:
-                return f'PAUSE {cmd.payload:.2f}s'
+                return f"PAUSE {cmd.payload:.2f}s"
 
     def start(self):
         """Begin executing the queue in order."""
@@ -176,15 +177,19 @@ class QueueController(UIController):
     @Slot(dict)
     def _insure_idle(self, status):
         if self._state == QS.RUNNING and not self._queue_timer.isActive():
-            state = status['state']
-            if state == 'Idle':
+            state = status["state"]
+            if state == "Idle":
                 self._advance()
-            elif state == 'Jog':
-                logger.error(f"`QueueController`: My disappointment is immeasurable and my day is "
-                             f"ruined: still jogging past deadline, state: {state}")
+            elif state == "Jog":
+                logger.error(
+                    f"`QueueController`: My disappointment is immeasurable and my day is "
+                    f"ruined: still jogging past deadline, state: {state}"
+                )
                 self.req_jog_cancel()
             else:
-                logger.error(f"`QueueController`: unexpected state during jog wait, panicking: {state}")
+                logger.error(
+                    f"`QueueController`: unexpected state during jog wait, panicking: {state}"
+                )
                 self.req_jog_cancel()
                 app = QApplication.instance()
                 assert app is not None
@@ -195,7 +200,7 @@ class QueueController(UIController):
         if self._state is QS.RUNNING and state is not CState.CONNECTED:
             logger.warning("`QueueController`: Connection lost, cancelling.")
             self.req_jog_cancel()
-    
+
     def req_jog_cancel(self):
         if self._transition(QS.CANCELLED):
             super().req_jog_cancel()

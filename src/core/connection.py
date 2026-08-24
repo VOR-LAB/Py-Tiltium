@@ -133,7 +133,6 @@ class ConnectionService(QObject):
     line_received = Signal(str)
     """Emitted based on what line/realtime-byte has been sent through the
     connection. Sends it up to Parent/UI to react appropriately."""
-    
 
     def __init__(self, parent=None):
         """Starts in DISCONNECTED with no worker thread or connection yet."""
