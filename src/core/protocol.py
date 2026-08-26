@@ -9,9 +9,12 @@ SOFT_RESET = b"\x18"
 
 # Checks and bounds. Must raise exceptions in case functions are used incorrectly.
 AXES = ("A", "Z")
-MAX_DIST = 300.0
-MIN_DIST = -300.0
+MAX_DIST = 200.0
+MIN_DIST = -200.0
 MAX_RATE = 300.0
+
+ACCEL_SETTING = {"A": 10.0, "Z": 10.0}  # revs/s^2 ($122, $123)
+MAX_RATE_SETTING = {"A": 500.0, "Z": 500.0}  # revs/min ($112, $113)
 
 
 # Line-based command builder.
@@ -32,13 +35,9 @@ def jog_command(axis: str, distance: float, feedrate: float) -> str:
             f"jog_command: `feedrate` too large: {feedrate}, expected `feedrate < {MAX_RATE}`"
         )
 
-    return f"$J=G91 {axis}{distance} F{feedrate}"
+    return f"$J=G91 {axis}{distance:.3f} F{feedrate:.3f}"
 
-
-ACCEL_SETTING = {"A": 10.0, "Z": 10.0}  # revs/s^2 ($122, $123)
-MAX_RATE_SETTING = {"A": 500.0, "Z": 500.0}  # revs/min ($112, $113)
-
-
+# Calculates the amount of time a jog takes.
 def jog_time(axis: str, distance: float, feedrate: float) -> float:
     if axis not in AXES:
         raise ValueError(f"jog_command: incorrect `axis`: {axis!r}, expected one of {AXES}")

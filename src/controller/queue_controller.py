@@ -10,6 +10,7 @@ from controller.main_controller import UIController
 from core.protocol import jog_command, jog_time
 from core.states import ConnectionState as CState
 from core.states import QueueState as QS
+from params import DEG_PER_DIST
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,8 @@ class CommandKind(Enum):
 class QueueCommand:
     kind: CommandKind
     payload: tuple[str, float] | float  # [str, float] for GCODE, float seconds for PAUSE
-
+    angle: float | None = None       # degrees, only set for GCODE jog commands
+    angle_rate: float | None = None  # degrees/sec, only set for GCODE jog commands
 
 class QueueController(UIController):
     """An extension of `UIController` which handles queuing multiple commands
@@ -46,17 +48,15 @@ class QueueController(UIController):
 
     current_command_changed = Signal(object)
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, parent=None, deg_per_dist: float = DEG_PER_DIST):
+        super().__init__(parent, deg_per_dist=deg_per_dist)
+
         self._state = QS.FINISHED
         self._current_command: QueueCommand | None = None
-
         self._queue: list[QueueCommand] = []
-
         self._queue_timer = QTimer(self)
         self._queue_timer.setSingleShot(True)
         self._queue_timer.timeout.connect(self.req_status)
-
         self._connection.status_received.connect(self._insure_idle)
         self.conn_state_changed.connect(self._on_conn_state_changed)
 
@@ -76,10 +76,19 @@ class QueueController(UIController):
         return True
 
     def req_jog_line(self, axis, dist, rate):
+        angle = dist          # original value, before unit conversion
+        angle_rate = rate      # original value, before unit conversion
+
+        dist /= self._deg_per_dist
+        rate /= self._deg_per_dist
+        rate *= 60.0
         if self._state is QS.IDLE:
             self._queue.append(
                 QueueCommand(
-                    CommandKind.GCODE, (jog_command(axis, dist, rate), jog_time(axis, dist, rate))
+                    CommandKind.GCODE,
+                    (jog_command(axis, dist, rate), jog_time(axis, dist, rate)),
+                    angle=angle,
+                    angle_rate=angle_rate,
                 )
             )
             self._emit_current_queue()
@@ -116,8 +125,8 @@ class QueueController(UIController):
         match cmd.kind:
             case CommandKind.GCODE:
                 assert isinstance(cmd.payload, tuple)
-                line, t = cmd.payload
-                return f"{line}  ({t:.2f}s + 0.5s(slack))"
+                _, t = cmd.payload
+                return f"{cmd.angle:.3f}\u00b0 @ {cmd.angle_rate:.3f}\u00b0/s  ({t:.2f}s + 0.5s(slack))"
             case CommandKind.PAUSE:
                 return f"PAUSE {cmd.payload:.2f}s"
 

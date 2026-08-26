@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from core.protocol import MAX_DIST, MAX_RATE
 from core.states import ConnectionState as CState
+from params import DEG_PER_DIST
 
 
 class ConnStateDisplay(NamedTuple):
@@ -51,12 +52,12 @@ class MainWindow(QMainWindow):
 
         self._distance_spinbox = QDoubleSpinBox()
         self._distance_spinbox.setDecimals(1)
-        self._distance_spinbox.setRange(0.0, MAX_DIST)
+        self._distance_spinbox.setRange(0.0, MAX_DIST * DEG_PER_DIST)
         self._distance_spinbox.setSingleStep(10)
 
         self._rate_spinbox = QDoubleSpinBox()
         self._rate_spinbox.setDecimals(1)
-        self._rate_spinbox.setRange(0.0, MAX_RATE)
+        self._rate_spinbox.setRange(0.0, (MAX_RATE * DEG_PER_DIST) / 60.0)
         self._rate_spinbox.setSingleStep(5)
 
         self._z_plus_button = QPushButton("Up")
@@ -84,8 +85,8 @@ class MainWindow(QMainWindow):
 
         trajectory_settings_layout = QFormLayout()
         trajectory_settings_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-        trajectory_settings_layout.addRow("Distance:", self._distance_spinbox)
-        trajectory_settings_layout.addRow("Rate:", self._rate_spinbox)
+        trajectory_settings_layout.addRow("Angle (deg):", self._distance_spinbox)
+        trajectory_settings_layout.addRow("Rate (deg/s):", self._rate_spinbox)
         controls_panel_layout.addLayout(trajectory_settings_layout)
 
         jog_pad_grid = QGridLayout()
