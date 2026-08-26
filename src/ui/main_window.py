@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from core.protocol import MAX_DIST, MAX_RATE
 from core.states import ConnectionState as CState
+from params import DEG_PER_DIST
 
 
 class ConnStateDisplay(NamedTuple):
@@ -28,14 +29,13 @@ class ConnStateDisplay(NamedTuple):
 
 class MainWindow(QMainWindow):
     _CONN_STATE_DISPLAY: ClassVar[dict] = {
-        CState.DISCONNECTED: ConnStateDisplay("Connect", True,
-                                              "Disconnected."),
+        CState.DISCONNECTED: ConnStateDisplay("Connect", True, "Disconnected."),
         CState.CONNECTING: ConnStateDisplay("Connect", False, "Connecting..."),
-        CState.FAILED: ConnStateDisplay("Connect", True, "Connection Failed, " + 
-                                        "check physical connection."),
+        CState.FAILED: ConnStateDisplay(
+            "Connect", True, "Connection Failed, " + "check physical connection."
+        ),
         CState.CONNECTED: ConnStateDisplay("Disconnect", True, "Connected!"),
-        CState.STOPPING: ConnStateDisplay("Disconnect", False,
-                                          "Disconnecting..."),
+        CState.STOPPING: ConnStateDisplay("Disconnect", False, "Disconnecting..."),
     }
     _UNKNOWN_CONN_STATE_DISPLAY = ConnStateDisplay("Unknown State", False, "Unknown State")
 
@@ -51,12 +51,12 @@ class MainWindow(QMainWindow):
 
         self._distance_spinbox = QDoubleSpinBox()
         self._distance_spinbox.setDecimals(1)
-        self._distance_spinbox.setRange(0.0, MAX_DIST)
+        self._distance_spinbox.setRange(0.0, MAX_DIST * DEG_PER_DIST)
         self._distance_spinbox.setSingleStep(10)
 
         self._rate_spinbox = QDoubleSpinBox()
         self._rate_spinbox.setDecimals(1)
-        self._rate_spinbox.setRange(0.0, MAX_RATE)
+        self._rate_spinbox.setRange(0.0, (MAX_RATE * DEG_PER_DIST) / 60.0)
         self._rate_spinbox.setSingleStep(5)
 
         self._z_plus_button = QPushButton("Up")
@@ -83,9 +83,11 @@ class MainWindow(QMainWindow):
         controls_panel_layout = QVBoxLayout()
 
         trajectory_settings_layout = QFormLayout()
-        trajectory_settings_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-        trajectory_settings_layout.addRow("Distance:", self._distance_spinbox)
-        trajectory_settings_layout.addRow("Rate:", self._rate_spinbox)
+        trajectory_settings_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
+        )
+        trajectory_settings_layout.addRow("Angle (deg):", self._distance_spinbox)
+        trajectory_settings_layout.addRow("Rate (deg/s):", self._rate_spinbox)
         controls_panel_layout.addLayout(trajectory_settings_layout)
 
         jog_pad_grid = QGridLayout()
@@ -107,10 +109,18 @@ class MainWindow(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
 
-        self._z_plus_button.setIcon(self._z_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowUp))
-        self._z_minus_button.setIcon(self._z_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
-        self._a_plus_button.setIcon(self._a_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight))
-        self._a_minus_button.setIcon(self._a_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowLeft))
+        self._z_plus_button.setIcon(
+            self._z_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowUp)
+        )
+        self._z_minus_button.setIcon(
+            self._z_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown)
+        )
+        self._a_plus_button.setIcon(
+            self._a_plus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight)
+        )
+        self._a_minus_button.setIcon(
+            self._a_minus_button.style().standardIcon(QStyle.StandardPixmap.SP_ArrowLeft)
+        )
 
         self._connect_widgets_to_controller()
         self._connect_controller_to_widgets()
@@ -121,24 +131,24 @@ class MainWindow(QMainWindow):
         self._req_status_button.clicked.connect(self.controller.req_status)
 
         self._z_plus_button.clicked.connect(
-            lambda: self.controller.req_jog_line("Z", 
-                                                 self._distance_spinbox.value(), 
-                                                 self._rate_spinbox.value())
+            lambda: self.controller.req_jog_line(
+                "Z", self._distance_spinbox.value(), self._rate_spinbox.value()
+            )
         )
         self._z_minus_button.clicked.connect(
-            lambda: self.controller.req_jog_line("Z", 
-                                                 -self._distance_spinbox.value(), 
-                                                 self._rate_spinbox.value())
+            lambda: self.controller.req_jog_line(
+                "Z", -self._distance_spinbox.value(), self._rate_spinbox.value()
+            )
         )
         self._a_plus_button.clicked.connect(
-            lambda: self.controller.req_jog_line("A", 
-                                                 self._distance_spinbox.value(), 
-                                                 self._rate_spinbox.value())
+            lambda: self.controller.req_jog_line(
+                "A", self._distance_spinbox.value(), self._rate_spinbox.value()
+            )
         )
         self._a_minus_button.clicked.connect(
-            lambda: self.controller.req_jog_line("A", 
-                                                 -self._distance_spinbox.value(), 
-                                                 self._rate_spinbox.value())
+            lambda: self.controller.req_jog_line(
+                "A", -self._distance_spinbox.value(), self._rate_spinbox.value()
+            )
         )
 
     def _connect_controller_to_widgets(self):
