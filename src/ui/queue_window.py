@@ -5,6 +5,7 @@ from typing import ClassVar, NamedTuple
 
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QGridLayout,
@@ -66,6 +67,12 @@ class MainWindow(QMainWindow):
         self._req_status_button = QPushButton("Status")
         self._clear_queue_button = QPushButton("Clear")
 
+        self._preset_name_edit = QLineEdit()
+        self._preset_name_edit.setPlaceholderText("Preset name")
+        self._save_preset_button = QPushButton("Save Preset")
+        self._preset_combo = QComboBox()
+        self._load_preset_button = QPushButton("Load Preset")
+
         self._distance_spinbox = QDoubleSpinBox()
         self._distance_spinbox.setDecimals(1)
         self._distance_spinbox.setRange(0.0, MAX_DIST * DEG_PER_DIST)
@@ -117,6 +124,13 @@ class MainWindow(QMainWindow):
         activity_buttons_layout.addWidget(self._clear_queue_button)
         activity_panel_layout.addLayout(activity_buttons_layout)
 
+        preset_layout = QHBoxLayout()
+        preset_layout.addWidget(self._preset_name_edit)
+        preset_layout.addWidget(self._save_preset_button)
+        preset_layout.addWidget(self._preset_combo)
+        preset_layout.addWidget(self._load_preset_button)
+        activity_panel_layout.addLayout(preset_layout)
+
         center_layout.addLayout(activity_panel_layout)
 
         controls_panel_layout = QVBoxLayout()
@@ -166,6 +180,7 @@ class MainWindow(QMainWindow):
 
         self._connect_widgets_to_controller()
         self._connect_controller_to_widgets()
+        self._refresh_preset_list()
 
     def _connect_widgets_to_controller(self):
         self._connection_button.clicked.connect(self.controller.toggle_connect_disconnect)
@@ -197,6 +212,18 @@ class MainWindow(QMainWindow):
         self._pause_button.clicked.connect(
             lambda: self.controller.req_pause(self._duration_spinbox.value())
         )
+        self._save_preset_button.clicked.connect(self._on_save_preset_clicked)
+        self._load_preset_button.clicked.connect(
+            lambda: self.controller.req_load_preset(self._preset_combo.currentText())
+        )
+
+    def _on_save_preset_clicked(self):
+        self.controller.req_save_preset(self._preset_name_edit.text())
+        self._refresh_preset_list()
+
+    def _refresh_preset_list(self):
+        self._preset_combo.clear()
+        self._preset_combo.addItems(self.controller.list_presets())
 
     def _connect_controller_to_widgets(self):
         self.controller.conn_state_changed.connect(self._on_conn_state_changed)

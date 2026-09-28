@@ -1,8 +1,10 @@
 import itertools
+import json
 from unittest.mock import patch
 
 import pytest
 
+from controller import queue_controller
 from controller.queue_controller import CommandKind, QueueCommand, QueueController
 from core.states import ConnectionState as CState
 from core.states import QueueState as QS
@@ -242,3 +244,185 @@ def test_req_jog_cancel_from_non_running_is_noop(controller, state):
         controller.req_jog_cancel()
     assert controller._state == state
     send_realtime.assert_not_called()
+
+
+# --- req_save_preset() / req_load_preset() / list_presets() ---
+#
+# Spec: presets are the current `_queue` serialized as JSON to
+# `PRESETS_DIR / f"{name}.json"`. `PRESETS_DIR` is a module-level `pathlib.Path`
+# constant in `controller.queue_controller` (tests monkeypatch it to a tmp_path,
+# so the implementation must read that constant rather than recomputing the path
+# inline). Both saving and loading only run while IDLE (same rule as
+# req_jog_line/req_pause) - the queue shrinks as it runs, so saving mid-run would
+# capture leftovers instead of the full recipe. Loading replaces `_queue`
+# wholesale and emits `current_queue` on success. A missing preset file is
+# allowed to raise FileNotFoundError - no special-casing needed.
+#
+# On-disk shape: a JSON list of objects, one per QueueCommand, in queue order:
+#   {"kind": "GCODE" | "PAUSE", "payload": [str, float] | float,
+#    "angle": float | None, "angle_rate": float | None}
+#
+# Name safety: `name` comes from a free-text "save" box in the UI (the "load"
+# side will be a dropdown built from list_presets(), so it never sees a raw
+# typed name) but both req_save_preset and req_load_preset must reject a name
+# that isn't safe to use as a bare filename - anything containing a path
+# separator, `..`, or another character a filesystem/shell would choke on
+# (`:`, `$`, etc.) - by raising ValueError, before touching the filesystem.
+#
+# list_presets() returns the sorted stems of every "*.json" file directly
+# under PRESETS_DIR (empty list if the directory doesn't exist yet), for the
+# UI to populate that load dropdown.
+
+UNSAFE_PRESET_NAMES = ["foo:bar", "foo$bar", "foo/bar", "foo\\bar", ".."]
+
+
+@pytest.fixture
+def preset_dir(monkeypatch, tmp_path):
+    """Point controller.queue_controller.PRESETS_DIR at a throwaway directory
+    so preset tests never touch the real project .presets/ folder."""
+    monkeypatch.setattr(queue_controller, "PRESETS_DIR", tmp_path, raising=False)
+    return tmp_path
+
+
+def test_req_save_preset_writes_expected_json(controller, preset_dir):
+    controller._state = QS.IDLE
+    controller._queue = [
+        QueueCommand(CommandKind.GCODE, ("$J=G91 A1.000 F10.000", 0.5), angle=1.0, angle_rate=10.0),
+        QueueCommand(CommandKind.PAUSE, 2.0),
+    ]
+
+    controller.req_save_preset("my_preset")
+
+    data = json.loads((preset_dir / "my_preset.json").read_text())
+    assert data == [
+        {
+            "kind": "GCODE",
+            "payload": ["$J=G91 A1.000 F10.000", 0.5],
+            "angle": 1.0,
+            "angle_rate": 10.0,
+        },
+        {"kind": "PAUSE", "payload": 2.0, "angle": None, "angle_rate": None},
+    ]
+
+
+def test_req_save_preset_creates_presets_dir_if_missing(monkeypatch, tmp_path, controller):
+    monkeypatch.setattr(queue_controller, "PRESETS_DIR", tmp_path / ".presets", raising=False)
+    controller._state = QS.IDLE
+    controller._queue = [QueueCommand(CommandKind.PAUSE, 1.0)]
+
+    controller.req_save_preset("preset")
+
+    assert (tmp_path / ".presets" / "preset.json").exists()
+
+
+def test_req_save_preset_overwrites_existing_file(controller, preset_dir):
+    controller._state = QS.IDLE
+    controller._queue = [QueueCommand(CommandKind.PAUSE, 1.0)]
+    controller.req_save_preset("preset")
+
+    controller._queue = [QueueCommand(CommandKind.PAUSE, 9.0)]
+    controller.req_save_preset("preset")
+
+    data = json.loads((preset_dir / "preset.json").read_text())
+    assert data == [{"kind": "PAUSE", "payload": 9.0, "angle": None, "angle_rate": None}]
+
+
+@pytest.mark.parametrize("state", [QS.RUNNING, QS.FINISHED, QS.CANCELLED, QS.UNKNOWN_ERROR])
+def test_req_save_preset_noop_when_not_idle(controller, preset_dir, state):
+    controller._state = state
+    controller._queue = [QueueCommand(CommandKind.PAUSE, 1.0)]
+
+    controller.req_save_preset("preset")
+
+    assert not (preset_dir / "preset.json").exists()
+
+
+def test_req_load_preset_replaces_queue_when_idle(controller, qtbot, preset_dir):
+    controller._state = QS.IDLE
+    controller._queue = [QueueCommand(CommandKind.PAUSE, 1.0)]
+    controller.req_save_preset("preset")
+    controller._queue = []
+
+    with qtbot.waitSignal(controller.current_queue, timeout=1000):
+        controller.req_load_preset("preset")
+
+    assert controller._queue == [QueueCommand(CommandKind.PAUSE, 1.0)]
+
+
+def test_req_load_preset_restores_gcode_tuple_payload(controller, preset_dir):
+    controller._state = QS.IDLE
+    controller._queue = [
+        QueueCommand(CommandKind.GCODE, ("$J=G91 A1.000 F10.000", 0.5), angle=1.0, angle_rate=10.0)
+    ]
+    controller.req_save_preset("preset")
+    controller._queue = []
+
+    controller.req_load_preset("preset")
+
+    cmd = controller._queue[0]
+    assert cmd == QueueCommand(
+        CommandKind.GCODE, ("$J=G91 A1.000 F10.000", 0.5), angle=1.0, angle_rate=10.0
+    )
+    assert isinstance(cmd.payload, tuple)
+
+
+def test_req_load_preset_noop_when_not_idle(controller, preset_dir):
+    controller._state = QS.IDLE
+    controller._queue = [QueueCommand(CommandKind.PAUSE, 1.0)]
+    controller.req_save_preset("preset")
+
+    controller._state = QS.RUNNING
+    controller._queue = [QueueCommand(CommandKind.PAUSE, 9.0)]
+    controller.req_load_preset("preset")
+
+    assert controller._queue == [QueueCommand(CommandKind.PAUSE, 9.0)]
+
+
+def test_req_load_preset_missing_file_raises(controller, preset_dir):
+    controller._state = QS.IDLE
+    with pytest.raises(FileNotFoundError):
+        controller.req_load_preset("does_not_exist")
+
+
+@pytest.mark.parametrize("bad_name", UNSAFE_PRESET_NAMES)
+def test_req_save_preset_rejects_unsafe_name(controller, preset_dir, bad_name):
+    controller._queue = [QueueCommand(CommandKind.PAUSE, 1.0)]
+    with pytest.raises(ValueError):
+        controller.req_save_preset(bad_name)
+    assert list(preset_dir.iterdir()) == []
+
+
+@pytest.mark.parametrize("bad_name", UNSAFE_PRESET_NAMES)
+def test_req_load_preset_rejects_unsafe_name(controller, preset_dir, bad_name):
+    controller._state = QS.IDLE
+    controller._queue = [QueueCommand(CommandKind.PAUSE, 9.0)]
+    with pytest.raises(ValueError):
+        controller.req_load_preset(bad_name)
+    assert controller._queue == [QueueCommand(CommandKind.PAUSE, 9.0)]
+
+
+def test_req_save_preset_allows_spaces_hyphen_and_underscore(controller, preset_dir):
+    controller._state = QS.IDLE
+    controller._queue = [QueueCommand(CommandKind.PAUSE, 1.0)]
+    controller.req_save_preset("my preset_1-final")
+    assert (preset_dir / "my preset_1-final.json").exists()
+
+
+# --- list_presets() ---
+
+
+def test_list_presets_empty_when_dir_missing(controller, monkeypatch, tmp_path):
+    monkeypatch.setattr(queue_controller, "PRESETS_DIR", tmp_path / ".presets", raising=False)
+    assert controller.list_presets() == []
+
+
+def test_list_presets_returns_saved_names_sorted(controller, preset_dir):
+    (preset_dir / "b_preset.json").write_text("[]")
+    (preset_dir / "a_preset.json").write_text("[]")
+    assert controller.list_presets() == ["a_preset", "b_preset"]
+
+
+def test_list_presets_ignores_non_json_files(controller, preset_dir):
+    (preset_dir / "preset.json").write_text("[]")
+    (preset_dir / "notes.txt").write_text("hello")
+    assert controller.list_presets() == ["preset"]

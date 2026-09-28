@@ -1,4 +1,6 @@
+import json
 import logging
+import re
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import ClassVar
@@ -10,9 +12,11 @@ from controller.main_controller import UIController
 from core.protocol import jog_command, jog_time
 from core.states import ConnectionState as CState
 from core.states import QueueState as QS
-from params import DEG_PER_DIST
+from params import DEG_PER_DIST, PRESETS_DIR
 
 logger = logging.getLogger(__name__)
+
+_SAFE_PRESET_NAME = re.compile(r"^[\w \-]+$")
 
 
 class CommandKind(Enum):
@@ -102,6 +106,53 @@ class QueueController(UIController):
             self._emit_current_queue()
         else:
             logger.warning("`QueueController`: Tried queuing while not idle.")
+
+    def _validate_preset_name(self, name: str) -> None:
+        if not _SAFE_PRESET_NAME.fullmatch(name):
+            raise ValueError(f"unsafe preset name: {name!r}")
+
+    def req_save_preset(self, name: str) -> None:
+        self._validate_preset_name(name)
+        if self._state is not QS.IDLE:
+            logger.warning("`QueueController`: Tried saving a preset while not idle.")
+            return
+        PRESETS_DIR.mkdir(parents=True, exist_ok=True)
+        data = [
+            {
+                "kind": cmd.kind.name,
+                "payload": cmd.payload,
+                "angle": cmd.angle,
+                "angle_rate": cmd.angle_rate,
+            }
+            for cmd in self._queue
+        ]
+        (PRESETS_DIR / f"{name}.json").write_text(json.dumps(data))
+
+    def req_load_preset(self, name: str) -> None:
+        self._validate_preset_name(name)
+        if self._state is not QS.IDLE:
+            logger.warning("`QueueController`: Tried loading a preset while not idle.")
+            return
+        data = json.loads((PRESETS_DIR / f"{name}.json").read_text())
+        self._queue = [
+            QueueCommand(
+                CommandKind[item["kind"]],
+                tuple(item["payload"])
+                if item["kind"] == CommandKind.GCODE.name
+                else item["payload"],
+                angle=item["angle"],
+                angle_rate=item["angle_rate"],
+            )
+            for item in data
+        ]
+        self._emit_current_queue()
+
+    def list_presets(self) -> list[str]:
+        """Return the names of presets currently saved under PRESETS_DIR, for
+        populating a "load preset" dropdown."""
+        if not PRESETS_DIR.is_dir():
+            return []
+        return sorted(p.stem for p in PRESETS_DIR.glob("*.json"))
 
     def clear(self):
         """Discard the queue without running it, resetting to idle if needed."""
