@@ -1,3 +1,5 @@
+from pathlib import Path
+
 DEG_PER_DIST = 0.581  # ± 0.003
 """The amount of degrees the chair rotates per single rotation of the stepper
 motor. This can be derived by doing experimentation and finding the linear
@@ -27,4 +29,9 @@ Minimum allowed travel distance in a single command.
 MAX_RATE = 300.0
 """NOTE: Internal Parameter. WIP
 Maximum allowed speed of travel.
+"""
+
+PRESETS_DIR = Path(__file__).resolve().parent.parent / ".presets"
+"""Directory command-queue presets are saved to/loaded from, one JSON file per
+preset. Lives at the project root (sibling to `src/`), gitignored.
 """

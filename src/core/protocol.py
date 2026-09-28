@@ -56,6 +56,11 @@ def jog_time(axis: str, distance: float, feedrate: float) -> float:
             f"jog_command: `feedrate` too large: {feedrate}, expected `feedrate < {MAX_RATE}`"
         )
 
+    if feedrate == 0 and distance != 0:
+        raise ValueError(
+            "jog_command: `feedrate` is zero, cannot compute jog time for nonzero `distance`"
+        )
+
     accel = ACCEL_SETTING[axis]
     v_max = min(feedrate, MAX_RATE_SETTING[axis]) / 60.0
     d = abs(distance)
