@@ -70,6 +70,7 @@ class MainWindow(QMainWindow):
         self._preset_name_edit = QLineEdit()
         self._preset_name_edit.setPlaceholderText("Preset name")
         self._save_preset_button = QPushButton("Save Preset")
+        self._delete_preset_button = QPushButton("Delete Preset")
         self._preset_combo = QComboBox()
         self._load_preset_button = QPushButton("Load Preset")
 
@@ -124,12 +125,16 @@ class MainWindow(QMainWindow):
         activity_buttons_layout.addWidget(self._clear_queue_button)
         activity_panel_layout.addLayout(activity_buttons_layout)
 
-        preset_layout = QHBoxLayout()
-        preset_layout.addWidget(self._preset_name_edit)
-        preset_layout.addWidget(self._save_preset_button)
-        preset_layout.addWidget(self._preset_combo)
-        preset_layout.addWidget(self._load_preset_button)
-        activity_panel_layout.addLayout(preset_layout)
+        preset_control_layout = QHBoxLayout()
+        preset_control_layout.addWidget(self._save_preset_button)
+        preset_control_layout.addWidget(self._delete_preset_button)
+        preset_control_layout.addWidget(self._load_preset_button)
+        activity_panel_layout.addLayout(preset_control_layout)
+
+        preset_select_layout = QHBoxLayout()
+        preset_select_layout.addWidget(self._preset_name_edit)
+        preset_select_layout.addWidget(self._preset_combo)
+        activity_panel_layout.addLayout(preset_select_layout)
 
         center_layout.addLayout(activity_panel_layout)
 
@@ -213,12 +218,17 @@ class MainWindow(QMainWindow):
             lambda: self.controller.req_pause(self._duration_spinbox.value())
         )
         self._save_preset_button.clicked.connect(self._on_save_preset_clicked)
+        self._delete_preset_button.clicked.connect(self._on_delete_preset_clicked)
         self._load_preset_button.clicked.connect(
             lambda: self.controller.req_load_preset(self._preset_combo.currentText())
         )
 
     def _on_save_preset_clicked(self):
         self.controller.req_save_preset(self._preset_name_edit.text())
+        self._refresh_preset_list()
+
+    def _on_delete_preset_clicked(self):
+        self.controller.req_delete_preset(self._preset_combo.currentText())
         self._refresh_preset_list()
 
     def _refresh_preset_list(self):

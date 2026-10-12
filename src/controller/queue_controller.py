@@ -128,6 +128,13 @@ class QueueController(UIController):
         ]
         (PRESETS_DIR / f"{name}.json").write_text(json.dumps(data))
 
+    def req_delete_preset(self, name: str) -> None:
+        self._validate_preset_name(name)
+        if self._state is not QS.IDLE:
+            logger.warning("`QueueController`: Tried deleting a preset while not idle.")
+            return
+        (PRESETS_DIR / f"{name}.json").unlink(missing_ok=True)
+
     def req_load_preset(self, name: str) -> None:
         self._validate_preset_name(name)
         if self._state is not QS.IDLE:
